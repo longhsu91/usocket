@@ -2,11 +2,13 @@
 #include "uns_error.h"
 
 #include <stdio.h>
+#include <string.h>
 #include <time.h>
 #include <netinet/in.h> /* sockaddr_in{} and other Internet defns */
-#include <sys/un.h> /* unix address family */
 #include <strings.h>
 #include <arpa/inet.h>
+
+#define LOCAL_ADDRESS "127.0.0.1"
 
 int main(int argc, char **argv)
 {
@@ -22,9 +24,11 @@ int main(int argc, char **argv)
     srv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     srv_addr.sin_port = htons(5000);
 
-    if (inet_pton(AF_INET, argv[1], &srv_addr.sin_addr) <= 0)
+    char addr_buf[MAXLINE];
+    memcpy(addr_buf, argc == 2 ? argv[1] : LOCAL_ADDRESS, strlen(argc == 2 ? argv[1] : LOCAL_ADDRESS) + 1);
+    if (inet_pton(AF_INET, addr_buf, &srv_addr.sin_addr) <= 0)
     {
-        printf("inet_pton error for %s.\n", argv[1]);
+        uns_print("inet_pton error");
     }
 
     uns_connect(socket_fd, (struct sockaddr *)&srv_addr, sizeof(srv_addr));
