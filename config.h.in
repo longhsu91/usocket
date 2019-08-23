@@ -1,0 +1,5 @@
+// the configured options and settings for uscoket
+#define USOCKET_VERSION_MAJOR @USOCKET_VERSION_MAJOR @
+#define USOCKET_VERSION_MINOR @USOCKET_VERSION_MINOR @
+
+#cmakedefine USOCKET_TEST
