@@ -8,30 +8,7 @@
 #include <strings.h>
 #include <errno.h>
 #include <unistd.h>
-#include <signal.h>
 #include <sys/wait.h>
-
-static void sig_child(int sig_number)
-{
-    uns_print("catch signal %d from child", sig_number);
-
-    pid_t pid;
-    int status;
-
-    while (1)
-    {
-        pid = waitpid(-1, &status, WNOHANG);
-
-        if (pid > 0)
-        {
-            uns_print("child process %d has exited", pid);
-        }
-        else
-        {
-            break;
-        }
-    }
-}
 
 int main(int argc, char **argv)
 {
@@ -51,48 +28,69 @@ int main(int argc, char **argv)
 
     uns_listen(listen_fd, 5);
 
-    // set singal to handle child process
-    struct sigaction sa;
-    sa.sa_flags = 0;
-    sa.sa_handler = sig_child;
-    sigaction(SIGCHLD, &sa, NULL);
+    // select
+    fd_set read_sets;
+    fd_set tmp_sets;
+    FD_ZERO(&read_sets);
+    FD_SET(listen_fd, &read_sets);
+    int max_fd = listen_fd + 1;
+    tmp_sets = read_sets;
 
     while (1)
     {
-        if ((connect_fd = accept(listen_fd, (struct sockaddr *)NULL, NULL)) < 0)
+        read_sets = tmp_sets;
+
+        uns_print("wait for event...");
+        select(max_fd, &read_sets, NULL, NULL, NULL);
+
+        for (int fd = 0; fd < max_fd; fd++)
         {
-            // signal will interrupt the accept call
-            if (errno == EINTR)
+            // new connect
+            if (fd == listen_fd && FD_ISSET(listen_fd, &read_sets))
             {
+                if ((connect_fd = accept(listen_fd, (struct sockaddr *)NULL, NULL)) < 0)
+                {
+                    // signal will interrupt the accept call
+                    if (errno == EINTR)
+                    {
+                        continue;
+                    }
+                    else
+                    {
+                        uns_error_exit("accept error: %s", strerror(errno));
+                    }
+                }
+
+                uns_print("new client %d connected...", connect_fd);
+
+                if (max_fd < (connect_fd + 1))
+                {
+                    max_fd = connect_fd + 1;
+                }
+
+                FD_SET(connect_fd, &tmp_sets);
+
                 continue;
             }
-            else
+
+            if (FD_ISSET(fd, &read_sets))
             {
-                uns_error_exit("accept error: %s", strerror(errno));
+                uns_print("new msg arrive on %d", fd);
+                if ((n = uns_recv(fd, buf, MAXLINE, 0)) > 0)
+                {
+                    uns_send(fd, buf, MAXLINE, 0);
+                }
+
+                if (n == 0)
+                {
+                    uns_close(fd);
+                    FD_CLR(fd, &tmp_sets);
+                }
             }
         }
-
-        uns_print("new client connected...");
-
-        pid_t child_pid = fork();
-
-        if (child_pid == 0)
-        {
-            uns_close(listen_fd);
-            while ((n = uns_recv(connect_fd, buf, MAXLINE, 0)) > 0)
-            {
-                uns_send(connect_fd, buf, MAXLINE, 0);
-            }
-
-            if (n == 0)
-            {
-                uns_close(connect_fd);
-                exit(0);
-            }
-        }
-
-        uns_close(connect_fd);
     }
 
     uns_close(listen_fd);
+
+    return 0;
 }

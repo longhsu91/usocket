@@ -44,7 +44,6 @@ int main(int argc, char **argv)
     FD_SET(socket_fds[0], &read_sets);
     FD_SET(fileno(stdin), &read_sets);
     tmp_sets = read_sets;
-    int stdineof = 0;
 
     while (1)
     {
@@ -59,16 +58,8 @@ int main(int argc, char **argv)
             // server has closed
             if (uns_recv(socket_fds[0], buf, MAXLINE, 0) == 0)
             {
-                if (stdineof == 1)
-                {
-                    uns_close(socket_fds[0]);
-                    return 0;
-                }
-                else
-                {
-                    uns_print("server terminal error");
-                    return -1;
-                }
+                uns_close(socket_fds[0]);
+                return -1;
             }
 
             fputs(buf, stdout);
@@ -81,11 +72,7 @@ int main(int argc, char **argv)
             // contains value close
             if (strcasestr(buf, "close") != NULL)
             {
-                stdineof = 1;
-                // send FIN to server
-                shutdown(socket_fds[0], SHUT_WR);
-                FD_CLR(fileno(stdin), &tmp_sets);
-                continue;
+                break;
             }
 
             uns_send(socket_fds[0], buf, MAXLINE, 0);
