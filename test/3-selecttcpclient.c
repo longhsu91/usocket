@@ -79,8 +79,6 @@ int main(int argc, char **argv)
         }
     }
 
-    printf("make a github desktop test!!!\n");
-
     // exit will close all fds
     // uns_close(socket_fd);
 
